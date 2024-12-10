@@ -36,7 +36,11 @@ Then, build ns-3 by running the following command and redirect output to log fil
 
 ## Testing ns-3.43-RIS
 
-To run the ris-module-test-suite, run the following command on the ns-3 main directory:
+To specify the user transmission power run the following command (default value: 20 dBm, example: 30 dBm):
+```shell
+export TX_POWER_DBM=30.0
+```
+Next, to run the ris-module-test-suite, run the following command on the ns-3 main directory:
 
 ```shell
 ./test.py -s ris-module -v

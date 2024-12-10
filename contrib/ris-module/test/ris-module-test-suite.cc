@@ -1,3 +1,6 @@
+#include <cstdlib> // For std::getenv
+#include <string>  // For std::stod
+
 #include "ns3/core-module.h"
 #include "ns3/network-module.h"
 #include "ns3/internet-module.h"
@@ -39,15 +42,18 @@ std::vector<double> snrValues(numUsers, 0.0); // Initialize to 0, will be update
 class RisModuleTestCase1 : public TestCase
 {
 public:
-    RisModuleTestCase1();
+    RisModuleTestCase1(double txPowerDbm); // Constructor with txPowerDbm
     virtual ~RisModuleTestCase1();
 
 private:
     void DoRun() override;
+    double m_txPowerDbm; // Store Tx power
 };
 
-RisModuleTestCase1::RisModuleTestCase1()
-    : TestCase("RisModule test case (simulates RIS uplink scenario)")
+// Constructor Implementation
+RisModuleTestCase1::RisModuleTestCase1(double txPowerDbm)
+    : TestCase("RisModule test case (simulates RIS uplink scenario)"),
+      m_txPowerDbm(txPowerDbm) // Initialize member variable
 {
 }
 
@@ -205,7 +211,7 @@ void RisModuleTestCase1::DoRun()
 
             // Calculate SNR for the current user and RIS
             double snrDb = risModel->CalculateSnrWithRis(
-                txPowerDbm, 
+                m_txPowerDbm, // Use the instance's Tx power instead of txPowerDbm, 
                 user->GetObject<MobilityModel>(), 
                 ris->GetObject<MobilityModel>(), 
                 numElements, 
@@ -365,7 +371,24 @@ public:
 RisModuleTestSuite::RisModuleTestSuite()
     : TestSuite("ris-module", Type::UNIT)
 {
-    AddTestCase(new RisModuleTestCase1, Duration::QUICK);
+    double txPowerDbm = 20.0;
+
+    const char* envTxPower = std::getenv("TX_POWER_DBM");
+    if (envTxPower != nullptr)
+    {
+        try
+        {
+            txPowerDbm = std::stod(envTxPower); // Convert string to double
+        }
+        catch (const std::exception& e)
+        {
+            NS_LOG_ERROR("Error parsing TX_POWER_DBM: " << e.what());
+        }
+    }
+
+    NS_LOG_UNCOND("Using Tx Power: " << txPowerDbm << " dBm from environment variable TX_POWER_DBM");
+    AddTestCase(new RisModuleTestCase1(txPowerDbm), Duration::QUICK);
 }
+
 
 static RisModuleTestSuite srisModuleTestSuite;

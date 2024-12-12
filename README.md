@@ -36,9 +36,17 @@ Then, build ns-3 by running the following command and redirect output to log fil
 
 ## Testing ns-3.43-RIS
 
-To specify the user transmission power run the following command (default value: 20 dBm, example: 30 dBm):
+Various simulation parameters can be configured in "config.txt" file:
 ```shell
-export TX_POWER_DBM=30.0
+MAX_PACKETS=1000
+PACKET_SIZE=1024
+CHANNEL_WIDTH=20
+INTERVAL=0.01
+TOTAL_DURATION=10
+NUM_USERS=5
+NUM_RIS=3
+NUM_ELEMENTS=32
+TX_POWER_DBM=10
 ```
 Next, to run the ris-module-test-suite, run the following command on the ns-3 main directory:
 

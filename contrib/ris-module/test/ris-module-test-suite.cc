@@ -1,5 +1,9 @@
 #include <cstdlib> // For std::getenv
 #include <string>  // For std::stod
+#include <fstream>
+#include <sstream>
+#include <unordered_map>
+
 
 #include "ns3/core-module.h"
 #include "ns3/network-module.h"
@@ -16,54 +20,92 @@
 
 using namespace ns3;
 
-NS_LOG_COMPONENT_DEFINE("RisUplinkSimulation");
-// Define the number of users and RIS nodes as constants
-const uint32_t numUsers = 5;  // Example: 5 users
-const uint32_t numRIS = 3;    // Example: 5 RIS nodes
-const uint32_t numElements = 32; // Example: 32 elements per RIS
-
-const uint32_t channelWidth = 20;   // Valid ChannelWidth in MHz for 802.11ax
-const double totalDuration = 10.0; // Total simulation duration in seconds
-const double slotDuration = totalDuration / numUsers; // Each user's time slot
-
-// Bandwidth per RIS in Hz (adjust this value as needed)
-const double txPowerDbm = 20; //P_tx in dBm per user
-const double kBoltzmann = 1.38e-23; // Boltzmann constant in J/K
-const double roomTemperature = 290.0; // Room temperature in Kelvin
-double bandwidthPerRIS = 5e6; // Example: 5 MHz per RIS
-double noisePowerW = kBoltzmann * roomTemperature * bandwidthPerRIS;
-
-
-std::vector<double> timeSlots(numUsers, slotDuration); 
-// SNR values for each user (to be calculated, initialized here for testing)
-std::vector<double> snrValues(numUsers, 0.0); // Initialize to 0, will be updated based on path loss
-
 
 class RisModuleTestCase1 : public TestCase
 {
 public:
-    RisModuleTestCase1(double txPowerDbm); // Constructor with txPowerDbm
+    RisModuleTestCase1(); 
     virtual ~RisModuleTestCase1();
 
 private:
     void DoRun() override;
-    double m_txPowerDbm; // Store Tx power
 };
 
 // Constructor Implementation
-RisModuleTestCase1::RisModuleTestCase1(double txPowerDbm)
-    : TestCase("RisModule test case (simulates RIS uplink scenario)"),
-      m_txPowerDbm(txPowerDbm) // Initialize member variable
+RisModuleTestCase1::RisModuleTestCase1()
+    : TestCase("RisModule test case (simulates RIS uplink scenario)")
 {
+    
 }
 
 RisModuleTestCase1::~RisModuleTestCase1()
 {
 }
 
+// Utility function to read key-value pairs from a file
+std::unordered_map<std::string, std::string> ReadConfigFile(const std::string& filename) {
+    std::unordered_map<std::string, std::string> config;
+    std::ifstream file(filename);
+
+    // Verify file access
+    if (!file.is_open()) {
+        std::cerr << "Error: Failed to open configuration file: " << filename << std::endl;
+        return config; // Return an empty map
+    }
+
+    std::cout << "Successfully opened configuration file: " << filename << std::endl;
+
+    std::string line;
+    while (std::getline(file, line)) {
+        std::istringstream iss(line);
+        std::string key, value;
+        if (std::getline(iss, key, '=') && std::getline(iss, value)) {
+            config[key] = value;
+            std::cout << "Read configuration: " << key << " = " << value << std::endl; // Log each entry
+        }
+    }
+
+    file.close();
+    return config;
+}
+
 void RisModuleTestCase1::DoRun()
 {
+    NS_LOG_COMPONENT_DEFINE("RisUplinkSimulation");
     NS_LOG_UNCOND("Starting the RIS Uplink Simulation with Throughput Estimation");
+    //std::string filename = "config.txt";
+    std::string filename = "./contrib/ris-module/test/config.txt"; 
+    std::unordered_map<std::string, std::string> config = ReadConfigFile(filename);
+    // use default values below if not set in the file
+
+    // NS-3 parameters
+    uint32_t maxPackets = config.count("MAX_PACKETS") ? std::stoi(config["MAX_PACKETS"]) : 1000;
+    uint32_t packetSize = config.count("PACKET_SIZE") ? std::stoi(config["PACKET_SIZE"]) : 1024;
+    uint32_t channelWidth = config.count("CHANNEL_WIDTH") ? std::stoi(config["CHANNEL_WIDTH"]) : 20; // Valid ChannelWidth in MHz for 802.11ax
+    double interval = config.count("INTERVAL") ? std::stod(config["INTERVAL"]) : 0.01;
+    double totalDuration = config.count("TOTAL_DURATION") ? std::stod(config["TOTAL_DURATION"]) : 10.0;
+
+    // UL scenario parameters
+    uint32_t numUsers = config.count("NUM_USERS") ? std::stoi(config["NUM_USERS"]) : 5;
+    uint32_t numRIS = config.count("NUM_RIS") ? std::stoi(config["NUM_RIS"]) : 3;
+    uint32_t numElements = config.count("NUM_ELEMENTS") ? std::stoi(config["NUM_ELEMENTS"]) : 32; // Number of elements per RIS
+    double txPowerDbm = config.count("TX_POWER_DBM") ? std::stod(config["TX_POWER_DBM"]) : 20;
+
+    double slotDuration = totalDuration / numUsers; // Each user's time slot
+
+    // Bandwidth per RIS in Hz (adjust this value as needed)
+    //const double txPowerDbm = 20; //P_tx in dBm per user
+    const double kBoltzmann = 1.38e-23; // Boltzmann constant in J/K
+    const double roomTemperature = 290.0; // Room temperature in Kelvin
+    double bandwidthPerRIS = channelWidth*1e6; // Example: 20 MHz per RIS
+    double noisePowerW = kBoltzmann * roomTemperature * bandwidthPerRIS;
+
+
+    std::vector<double> timeSlots(numUsers, slotDuration); 
+    // SNR values for each user (to be calculated, initialized here for testing)
+    std::vector<double> snrValues(numUsers, 0.0); // Initialize to 0, will be updated based on path loss
+
+
     /*uint32_t seed = static_cast<uint32_t>(Simulator::Now().GetSeconds());  // Use time-based seed
     /SeedManager::SetSeed(seed);
     /SeedManager::SetRun(1);  // This can also be varied between runs */
@@ -136,58 +178,6 @@ void RisModuleTestCase1::DoRun()
         NS_LOG_UNCOND("RIS " << i << " assigned position: " << pos);
     }
 
-
-    /*for (uint32_t i = 0; i < numRIS; ++i) {
-        Ptr<MobilityModel> mobilityModel = risNodes.Get(i)->GetObject<MobilityModel>();
-        if (mobilityModel == nullptr) {
-            NS_LOG_ERROR("No mobility model assigned to RIS node " << i);
-        } else {
-            // Create unique random positions for each RIS
-            Ptr<UniformRandomVariable> xRand = CreateObject<UniformRandomVariable>();
-            xRand->SetAttribute("Min", DoubleValue(0.0));
-            xRand->SetAttribute("Max", DoubleValue(100.0));
-            xRand->SetStream(i);  // Ensure unique RNG stream per RIS node
-            double xPos = xRand->GetValue();
-
-            Ptr<UniformRandomVariable> yRand = CreateObject<UniformRandomVariable>();
-            yRand->SetAttribute("Min", DoubleValue(0.0));
-            yRand->SetAttribute("Max", DoubleValue(100.0));
-            yRand->SetStream(i);  // Unique stream for Y position
-            double yPos = yRand->GetValue();
-
-            Ptr<UniformRandomVariable> zRand = CreateObject<UniformRandomVariable>();
-            zRand->SetAttribute("Min", DoubleValue(0.0));
-            zRand->SetAttribute("Max", DoubleValue(10.0));
-            zRand->SetStream(i);  // Unique stream for Z position
-            double zPos = zRand->GetValue();
-
-            mobilityModel->SetPosition(Vector(xPos, yPos, zPos));
-
-            // Log the assigned position
-            Vector pos = mobilityModel->GetPosition();
-            NS_LOG_UNCOND("RIS " << i << " assigned position: " << pos);
-        }
-    }*/
-
-    /*
-    Ptr<MobilityModel> mobilityModel = risNodes.Get(0)->GetObject<MobilityModel>();
-    NS_ASSERT(mobilityModel != nullptr && "RIS node 0 has no mobility model");
-    for (uint32_t i = 0; i < risNodes.GetN(); ++i) {
-        Ptr<MobilityModel> mobilityModel = risNodes.Get(i)->GetObject<MobilityModel>();
-        if (mobilityModel) {
-            NS_LOG_UNCOND("RIS node " << i << " has mobility model initialized.");
-            mobilityModel->SetPosition(Vector(xRand->GetValue(), yRand->GetValue(), zRand->GetValue()));
-            // Log the assigned position
-            Vector pos = mobilityModel->GetPosition();
-            NS_LOG_UNCOND("RIS " << i << " assigned position: " << pos);
-        } else {
-            NS_LOG_ERROR("MobilityModel not found for RIS node " << i);
-            Simulator::Destroy();
-            return;
-        }
-    }*/
-
-
     // User-RIS association according to RIS model
     Ptr<RisPropagationLossModel> risModel = CreateObject<RisPropagationLossModel>();
     if (risModel) {
@@ -211,7 +201,7 @@ void RisModuleTestCase1::DoRun()
 
             // Calculate SNR for the current user and RIS
             double snrDb = risModel->CalculateSnrWithRis(
-                m_txPowerDbm, // Use the instance's Tx power instead of txPowerDbm, 
+                txPowerDbm, // Use the instance's Tx power instead of txPowerDbm, 
                 user->GetObject<MobilityModel>(), 
                 ris->GetObject<MobilityModel>(), 
                 numElements, 
@@ -255,23 +245,10 @@ void RisModuleTestCase1::DoRun()
         }
     }
 
-    //YansWifiChannelHelper channel = YansWifiChannelHelper::Default();
-    //channel.AddPropagationLoss("ns3::RisPropagationLossModel");
-
-    /*YansWifiPhyHelper phy = YansWifiPhyHelper();
-    phy.SetChannel(CreateObject<YansWifiChannel>());*/
-    //Sets up the channel for use in future objects created by the helper.
-    //It doesn't create an instance of WifiPhy immediately or associate the channel with anything directly.
-    // If you don't use phyHelper.Create<>() to create a WifiPhy object, the actual channel object might never 
-    //be associated with a WifiPhy
-
-    // Create the YansWifiChannelHelper
-    //YansWifiChannelHelper channelHelper = YansWifiChannelHelper::Default();
-    // Create the channel and set it in the YansWifiPhyHelper
-    //YansWifiPhyHelper phy = YansWifiPhyHelper();
-    //phy.SetChannel(channelHelper.Create());
     YansWifiChannelHelper channel = YansWifiChannelHelper::Default();
     YansWifiPhyHelper phy = YansWifiPhyHelper();
+    phy.Set("TxPowerStart", DoubleValue(txPowerDbm)); // Minimum transmission power in dBm
+    phy.Set("TxPowerEnd", DoubleValue(txPowerDbm));   // Maximum transmission power in dBm
     //channel.AddPropagationLoss("ns3::RisPropagationLossModel");
     phy.SetChannel(channel.Create());
 
@@ -301,8 +278,12 @@ void RisModuleTestCase1::DoRun()
 
     // UDP clients are installed on the user nodes to send traffic to the BS
     UdpClientHelper udpClient(bsInterface.GetAddress(0), 9); 
-    udpClient.SetAttribute("MaxPackets", UintegerValue(100)); // Max number of packets send by each user
-    udpClient.SetAttribute("PacketSize", UintegerValue(1024));
+    udpClient.SetAttribute("MaxPackets", UintegerValue(maxPackets));
+    udpClient.SetAttribute("PacketSize", UintegerValue(packetSize));
+    udpClient.SetAttribute("Interval", TimeValue(Seconds(interval)));
+    /*Traffic rate = (PacketSize * 8) / Interval
+             = (1024 bytes * 8 bits/byte) / 0.1 seconds
+             = 81,920 bps or ~0.08192 Mbps*/
 
     // Simulate TDMA where each user is served by 1 RIS and uses the total bandwidth
     for (uint32_t i = 0; i < numUsers; ++i) {
@@ -350,6 +331,7 @@ void RisModuleTestCase1::DoRun()
     }
 
     NS_LOG_UNCOND("System Sum Rate: " << systemSumRate / 1e6 << " Mbps");
+    NS_LOG_UNCOND("P_TX: " << txPowerDbm << " dBm");
 
     NS_LOG_UNCOND("SNR Values:");
     for (uint32_t i = 0; i < numUsers; ++i) {
@@ -371,23 +353,7 @@ public:
 RisModuleTestSuite::RisModuleTestSuite()
     : TestSuite("ris-module", Type::UNIT)
 {
-    double txPowerDbm = 20.0;
-
-    const char* envTxPower = std::getenv("TX_POWER_DBM");
-    if (envTxPower != nullptr)
-    {
-        try
-        {
-            txPowerDbm = std::stod(envTxPower); // Convert string to double
-        }
-        catch (const std::exception& e)
-        {
-            NS_LOG_ERROR("Error parsing TX_POWER_DBM: " << e.what());
-        }
-    }
-
-    NS_LOG_UNCOND("Using Tx Power: " << txPowerDbm << " dBm from environment variable TX_POWER_DBM");
-    AddTestCase(new RisModuleTestCase1(txPowerDbm), Duration::QUICK);
+    AddTestCase(new RisModuleTestCase1(), Duration::QUICK);
 }
 
 
